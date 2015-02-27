@@ -1,0 +1,11 @@
+Flavodoxin
+FMN-binding domain of the cytochrome P450bm-3
+Rubredoxin oxygen:oxidoreductase (ROO), C-terminal domain
+Nitric oxide reductase C-terminal domain
+Sulfite reductase alpha-component CysJ N-terminal domain
+NAD(P)H:quinone reductase
+Quinone reductase type 2 (menadione reductase)
+ACP phosphodiesterase AcpD
+Azobenzene reductase
+Hypothetical protein Ylr011wp
+Flavoprotein NrdI

@@ -1,0 +1,11 @@
+/Users/ajkal/Work/flavoproteins/fitted//2fcr_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1bvy_F_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1e5d_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1ycg_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1ykg_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1dxq_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//2qwx_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//2z98_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1nni_1_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1t0i_A_flsq.pdb
+/Users/ajkal/Work/flavoproteins/fitted//1rlj_A_flsq.pdb

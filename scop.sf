@@ -1,0 +1,379 @@
+##
+## R functions for delling with SCOP data
+##  Version 0.4   Thu Apr  5 19:02:26 EDT 2012  (upade for v1.75)
+##  Version 0.3   Tue Apr  1 15:32:29 PDT 2008  (upade for v1.73)
+##  Version 0.2   Wed Mar  5 16:17:29 PST 2008  (upade for v1.71)
+##  Version 0.1   Wed Aug 31 10:52:29 PDT 2005  (upade for v1.69)
+##
+##  http://scop.mrc-lmb.cam.ac.uk/scop/release-notes.html#scop-parseable-files
+##   sid   => scop domain identifer (d1bg2__)
+##   sccs  => scop compact clasification string (c.37.1.1)
+##   sunid => scop unique integer ids for each scop node (74353)
+##           the nodes being:-
+##           class (cl), fold (cf), superfamily (sf),
+##           family (fa), protein domain (dm), species (sp)
+##
+
+
+## Requirments:
+##    bio3d package,
+##    filehash package
+##
+## Functions:
+##    load.scop         loads scop data into R
+##    sunid.search      rtn scop classification info for sunids
+##    sunid.filler      rtn scop classification info for sunids
+##    txt.search        search for text in scop description files
+##    pdb.search        search for pdb ids or scop ids
+##    list.scop.node    list all the children of a given sunid
+##    add.scop.path     add the path to coordinate files for a list of sids
+##    seqaln.scop       produce a seq alignment of sids
+##
+## Usage:
+##    scop <- load.scop()  ## scop <- load.scop(TRUE)
+##    info <- pdb.search("1bg2", scop)
+##    kin.sf <- list.scop.node( substr(info[,"sf"],4,100), scop )
+##    kin.fa <- list.scop.node( substr(info[,"fa"],4,100), scop )
+##    kin.dm <- list.scop.node( substr(info[,"dm"],4,100), scop )
+##
+##    add.scop.path(kin.dm[,"sid"])
+##    aln <- seqaln.scop(kin.dm[,"sid"])
+
+## To Update
+## scop <- load.scop(T, inpath="http://scop.mrc-lmb.cam.ac.uk/scop/parse/", outpath="/Users/barry/tmpwork/scop/", version=1.75)
+##
+
+
+sunid.search <- function(sunid, scop.data,
+                         restrict=c("all","sf","fa","dm","sp")) {
+  ## speeds up search by restricting to 'level'
+  restrict <- match.arg(restrict)
+  if(restrict == "all") {
+    out <- (scop.data$des[ (scop.data$des[,"sunid"] %in% sunid), ])
+  } else {
+    sc  <- scop.data$des[ scop.data$des[,"node"]==restrict, ]
+    out <- (sc[ (sc[,"sunid"] %in% sunid), ])
+  }
+  if(is.vector(out)) ## ensure we rtn a matrix
+    out <- t(as.matrix(out))
+  return(out)
+}
+
+
+sunid.filler <- function(sunid, scop.data,
+                         level=c("all","sf","fa","dm","sp")) {
+
+  ## Take a vector of sunid(s) and look up only unique
+  ## entries filling in the duplicated guys in a slow
+  ## 'for' loop that is still quicker than straight
+  ## 'sunid.search' which looks up everything
+
+  ## p <- sunid.filler(substr(scop$cla[, "sf"],4,100), scop, level="sf")
+    
+  level <- match.arg(level)
+  blank <- rep(NA,length(sunid))
+
+  sunq <- unique(sunid)
+  blank[!duplicated(sunid)] <-
+    sunid.search(sunq, scop.data, level)[,"des"]
+
+  for(i in sunq) {
+    fill.ind <- which(sunid == i)
+    blank[fill.ind] <- blank[fill.ind[1]]
+  }
+  return(blank)
+}
+
+
+
+
+load.scop <- function(flag2read = FALSE, hash=TRUE,
+                      ##inpath="http://scop.mrc-lmb.cam.ac.uk/scop/parse/",
+                      inpath="/Users/barry/tmpwork/scop/1.75/",
+                      outpath=inpath,
+                      version="1.75") {
+
+  ## scop <- load.scop()
+  ## scop <- load.scop(flag2read = TRUE)
+
+  if(!flag2read) {
+    ## Load previously parsed and saved data which can be
+    ## either a filehash key-value database file or a regular
+    ## binary .RData file
+    
+    if(hash) {
+      library(filehash)
+      scop <- dbInit( paste(outpath,"scop.data.fh",sep="") )
+    } else {
+      load( paste(outpath,"scop.data.R",sep="") )     
+    }
+
+    
+  } else {
+    ## Otherwise read the four 'raw' scop data files afresh
+    ## and create either a filehash key-value database file 
+    ## or a regular binary .RData file
+    cat(paste("  Reading files from path:\n    ", inpath,
+            "\n  Taking Version:", version,"\n"))
+
+        files <- paste(inpath, c("dir.des.scop.txt_",
+                                 "dir.cla.scop.txt_",
+                                 "dir.com.scop.txt_",
+                                 "dir.hie.scop.txt_"), version, sep="")
+
+  
+    ## 1. Description file
+    des <- matrix(scan( files[1], sep = "\t", comment.char = "#",
+                       quote="", character()), ncol=5, byrow=T)
+    
+    colnames(des) <- c("sunid","node","sccs","sid","des")
+    
+    
+    ## 2. Clasification file
+    cla.tmp <- matrix(scan( files[2], sep = "\t", comment.char = "#",
+                           quote="", character()), ncol=6, byrow=T)
+    
+    lev.id <- matrix(unlist(strsplit(cla.tmp[,6], ",")), ncol=7, byrow=T)
+    cla    <- cbind(cla.tmp[,c(1,4)],lev.id)
+    colnames(cla) <- c("sid","sccs","cl","cf","sf","fa","dm","sp","px")
+    rm(cla.tmp,lev.id)
+    
+    
+    ## 3. Comment file (not really necesary)
+    com.tmp <- scan( files[3], sep = "\n", comment.char = "#",
+                    quote="", character())
+    com <- cbind(substr(com.tmp,0,5), substr(com.tmp,7,5000))
+    colnames(com) <- c("sunid","com")
+    rm(com.tmp)
+    
+    ## 4. Hierarchy file (in terms of sunid)
+    hir <- matrix(scan( files[4], sep = "\t", comment.char = "#",
+                       quote="", character()), ncol=3, byrow=T)
+    
+
+    ##- Create Anotation Object (a combination of des and cla files)
+    cat("Creating new $anot anotation object: this can be slow\n")
+    colnam <- c("pdbid", colnames(cla),
+                "sf.txt", "fa.txt", "dm.txt", "sp.txt")
+    anot <- matrix(NA, ncol=length(colnam), nrow=nrow(cla))
+    colnames(anot) <- colnam
+    rownames(anot) <- cla[,"sid"]
+  
+    anot[,"pdbid"] <- substr(cla[,"sid"],2,5)
+    anot[,2:(ncol(cla)+1)] <- cla
+
+    sc <- list(des=des)
+    anot[,"sf.txt"] <- sunid.filler(substr(cla[, "sf"],4,100),
+                                    sc, level="sf")
+    anot[,"fa.txt"] <- sunid.filler(substr(cla[, "fa"],4,100),
+                                    sc, level="fa")
+    anot[,"dm.txt"] <- sunid.filler(substr(cla[, "dm"],4,100),
+                                    sc, level="dm")
+    anot[,"sp.txt"] <- sunid.filler(substr(cla[, "sp"],4,100),
+                                    sc, level="sp")
+    rm(sc, colnam)
+
+
+    ##-- Save parsed output for future use
+    if(hash) {
+      ## A filehash key-value database file
+      library(filehash)
+      dbCreate( paste(outpath,"scop.data.fh",sep="") )
+      scop <- dbInit( paste(outpath,"scop.data.fh",sep="") )
+      dbInsert(scop, "des", des)
+      dbInsert(scop, "cla", cla)
+      dbInsert(scop, "com", com)
+      dbInsert(scop, "hir", hir)
+      dbInsert(scop, "anot", anot)
+      
+    } else {
+      ## A binary .RData file
+      scop <- list(des=des, cla=cla, com=com, hir=hir, anot=anot)
+      save(scop, file=paste(outpath,"scop.data.R",sep="") )
+    }    
+  }
+  scop
+}
+
+
+
+txt.search <- function(txt, scop.data, ignore.case=TRUE) {
+  ## txt.search("motor", scop)
+  i <- grep(txt, scop.data$des[,"des"], ignore.case=ignore.case )
+  return(scop.data$des[i,])
+}
+
+
+
+pdb.search <- function(code, scop.data, sid=FALSE) {
+  ## pdb.search2("2mys", scop)
+  if(sid) {
+    out <- scop.data$anot[anot[,"sid"] %in% code, ]
+  } else {
+    out <- scop.data$anot[scop.data$anot[,"pdbid"] %in% code, ]
+  }
+  if(is.vector(out)) ## ensure we rtn a matrix
+    out <- t(as.matrix(out))
+  return(out)
+}
+
+
+
+
+list.scop.node <- function(sunid, scop.data) {
+  ## Description:
+  ##  produce a list of all the structures
+  ##  that are children of a given sunid
+  ##  (i.e. "scop unique id" e.g. 52646)
+  ## Useage:
+  ##  ploops <- list.scop.node("52540")
+  ##  motors <- list.scop.node("52646")
+  ##
+  ## Update: Mon Apr 23 10:32:35 EDT 2012
+  ## to enable input 'sunid' to have text
+  ##  e.g.  "fa=47384" 
+
+  if( any( as.logical(grep("=", sunid)) ) ) {
+    sunid <- as.character(sapply(parse(text=sunid), eval))
+    msg <- paste("   ** Parsed to", paste(sunid, collapse=" "), "PLEASE CHECK THIS IS CORRECT!! **" )
+    warning(paste(" ** Input 'sunid' contains TEXT and possible sunid **", msg, sep="\n") )
+  }
+
+  if(length(sunid)>1)
+    warning(" ** Multiple sunid inputs hence childern may be from MULTIPLE nodes **")
+  nodes <- sunid.search( sunid, scop.data )[,"node"]
+  node <- unique(nodes)
+
+  if(length(node) == 1) {
+    return(scop.data$anot[ (scop.data$anot[,node] %in% paste(node,"=",sunid,sep="")), ])
+  } else {
+    index <- NULL
+    for(i in node) {
+      index <- c(index, which(scop.data$anot[,i] %in%
+                              paste(i,"=",sunid[(nodes==i)],sep="")) )
+    }          
+    return(scop.data$anot[ index, ])      
+  }
+}
+
+
+
+list.scop.node <- function(sunid, scop.data) {
+  ## Description:
+  ##  produce a list of all the structures
+  ##  that are children of a given sunid
+  ##  (i.e. "scop unique id" e.g. 52646)
+  ## Useage:
+  ##  ploops <- list.scop.node("52540")
+  ##  motors <- list.scop.node("52646")
+
+  if(length(sunid)>1)
+    warning(" ** Multiple sunid inputs hence childern may be from MULTIPLE nodes **")
+  nodes <- sunid.search( sunid, scop.data )[,"node"]
+  node <- unique(nodes)
+
+  if(length(node) == 1) {
+    return(scop.data$anot[ (scop.data$anot[,node] %in% paste(node,"=",sunid,sep="")), ])
+  } else {
+    index <- NULL
+    for(i in node) {
+      index <- c(index, which(scop.data$anot[,i] %in%
+                              paste(i,"=",sunid[(nodes==i)],sep="")) )
+    }          
+    return(scop.data$anot[ index, ])      
+  }
+}
+
+
+
+
+add.scop.path <- function(sids,
+                          path="/u3/bgrant/scopdb/1.73/pdbstyle-1.73/",
+                          online=FALSE) {
+  ## Description:
+  ##  takes scop "sids" (e.g. "d1bg2__") and adds path to
+  ##  structure files
+  ## Useage:
+  ##  info <- pdb.search2("1bg2", scop)
+  ##  dom  <- list.scop.node2( substr(info[,"dm"],4,100), scop )
+  ##  coord.files <- add.scop.path( dom[,"sid"] )
+
+  if(online) {
+    return( paste("http://astral.berkeley.edu/pdbstyle.cgi?id=",
+                 sids, "&output=text", sep="") )
+    
+  } else { 
+    return( file.path(path,
+                      substr( as.character(sids), 3, 4 ),
+                      paste(sids, ".ent", sep="")) )
+  }
+}
+  
+
+seqaln.scop <- function(sids, outfile="raw_aln.fa", ...) {
+  ## Description:
+  ##  produce multiple seq alignment for given scop "sid" list
+  ##  results are writen to "outfile" and put returned as a
+  ##  data.frame
+  ## Useage:
+  ##  aln <- seqaln.scop(aln.list, outfile="seqs_aln.fa")
+  
+  files <- add.scop.path(sids)
+  toread <- file.exists(files)
+  
+  if(all(!toread))
+    stop("No corresponding PDB files found")
+  
+  ## Extract sequences
+  raw <- NULL
+  for(i in 1:length(files)) { 
+      cat(paste("pdb/seq:",i,"  name:", sids[i]),"\n")    
+      if(!toread[i]) {
+        warning(paste("No PDB file found for sid", sids[i],
+                      ": (with filename) ",files[i]), call.=FALSE)
+      } else {
+        pdb <- read.pdb(files[i])
+        raw <- seqbind(raw, aa321(pdb$atom[pdb$calpha,"resid"]))
+      }
+    }
+  
+  ## Align sequences (have a look at this file!)
+  return(seqaln(raw, id=files, file=outfile, ...))
+}
+
+
+get.scop <- function(sids, path="./", URLonly=FALSE) {
+  ##
+  ## Description:
+  ##  takes scop "sids" (e.g. "d1bg2__") and downloads PDB format files
+  ##
+  
+  if(any(nchar(sids) != 7)) {
+    stop("sids should be standard 7 character SCOP PDB formart")
+  }
+  ids <- unique(sids)
+  
+  pdb.files <- paste(ids, ".pdb", sep="")
+  ##  get.files <- file.path("http://www.rcsb.org/pdb/files", pdb.files)
+  get.files <- paste("http://astral.berkeley.edu/pdbstyle.cgi?id=",
+                     ids, "&output=text", sep="")
+  
+  if(URLonly)
+    return(get.files)
+  
+  put.files <- file.path( path, pdb.files)
+
+  dir.create(path)
+  rtn <- rep(NA, length(pdb.files))
+  for(k in 1:length(pdb.files)) {
+    rtn[k] <- download.file( get.files[k], put.files[k] )
+  }
+
+  names(rtn) <- file.path( path, paste(ids,".pdb",sep="") )
+  if(any(rtn==1)) {
+    warning("Some files could not be downloaded, check returned value")
+    return(rtn)
+  } else {
+    return(names(rtn))
+  }
+}
